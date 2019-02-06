@@ -1,0 +1,34 @@
+name:                servant-oauth-server
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/george-steel/servant-oauth-server#readme
+license:             BSD3
+license-file:        LICENSE
+author:              George Steel
+maintainer:          george.steel@gmail.com
+copyright:           2019 Satsuma Labs
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Servant.OAuth.Server
+  build-depends:       base >= 4.7 && < 5
+                     , servant
+                     , servant-server
+                     , wai
+                     , text
+                     , jose
+                     , aeson
+                     , lens
+                     , mtl
+                     , bytestring
+                     , http-api-data
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/george-steel/servant-oauth-server
