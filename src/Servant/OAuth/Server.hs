@@ -5,7 +5,6 @@ module Servant.OAuth.Server where
 import Crypto.JWT
 import Servant.API
 import Servant.Server
-import Servant.Server.Internal.ServantErr
 import Servant.Server.Internal.RoutingApplication
 import Network.Wai (Request, requestHeaders)
 
@@ -19,9 +18,11 @@ import Control.Monad.Except
 import Control.Arrow
 import Control.Lens
 import Data.Proxy
-import Web.HttpApiData
 import Data.Aeson
 import Data.Maybe
+
+import Servant.OAuth.Grants
+
 
 
 data SomeJWKResolver where
@@ -30,36 +31,16 @@ data SomeJWKResolver where
 data JWTSettings = JWTSettings SomeJWKResolver JWTValidationSettings
 
 
-
-newtype CompactJWT = CompactJWT SignedJWT
-
-decodeCompactJWT :: B.ByteString -> Either Text CompactJWT
-decodeCompactJWT s = (pack . show . id @Error) +++ CompactJWT $ decodeCompact (BL.fromStrict s)
-
-instance (FromHttpApiData CompactJWT) where
-    parseQueryParam = decodeCompactJWT . T.encodeUtf8
-    parseHeader h = decodeCompactJWT . fromMaybe h $ B.stripPrefix "Bearer " h
-
-instance (ToHttpApiData CompactJWT) where
-    toQueryParam (CompactJWT t) = T.decodeUtf8 . BL.toStrict . encodeCompact $ t
-    toHeader (CompactJWT t) = BL.toStrict $ "Bearer " <> encodeCompact t
-
-instance (FromJSON CompactJWT) where
-    parseJSON = withText "JWT" $ either (fail . unpack) return . parseQueryParam
-
-instance (ToJSON CompactJWT) where
-    toJSON = String . toQueryParam
-
 data AuthError =
     AuthRequired Text
-    | InvalidRequest Text
+    | InvalidAuthRequest Text
     | InvalidToken Text
     | InsufficientScope Text
     deriving (Eq, Read, Show)
 
 authErrorServant :: AuthError -> ServantErr
 authErrorServant (AuthRequired msg) = err401 {errHeaders = [("WWW-Authenticate", "Bearer")], errBody = BL.fromStrict (T.encodeUtf8 msg)}
-authErrorServant (InvalidRequest msg) = err400 {errHeaders = [("WWW-Authenticate", "Bearer error=\"invalid_request\"")], errBody = "Malformed authorization header: " <> BL.fromStrict (T.encodeUtf8 msg)}
+authErrorServant (InvalidAuthRequest msg) = err400 {errHeaders = [("WWW-Authenticate", "Bearer error=\"invalid_request\"")], errBody = "Malformed authorization header: " <> BL.fromStrict (T.encodeUtf8 msg)}
 authErrorServant (InvalidToken msg) = err401 {errHeaders = [("WWW-Authenticate", "Bearer error=\"invalid_token\"")], errBody = BL.fromStrict (T.encodeUtf8 msg)}
 authErrorServant (InsufficientScope msg) = err403 {errHeaders = [("WWW-Authenticate", "Bearer error=\"insufficient_scope\"")], errBody = BL.fromStrict (T.encodeUtf8 msg)}
 
@@ -76,8 +57,17 @@ class FromJWT a where
     default fromJWT :: (FromHttpApiData a) => ClaimsSet -> Either Text a
     fromJWT claims = parseQueryParam =<< maybe (Left "sub claim not found") Right (claims ^? claimSub . _Just . string)
 
+instance (FromJWT a, FromJWT b) => FromJWT (a,b) where
+    fromJWT claims = (,) <$> fromJWT claims <*> fromJWT claims
+
+instance (FromJWT a) => FromJWT (Maybe a) where
+    fromJWT claims = either (const (Right Nothing)) (Right . Just) (fromJWT claims)
+
+
+
 checkAuthToken :: (FromJWT a) => JWTSettings -> CompactJWT -> IO (Either JWTError a)
-checkAuthToken (JWTSettings (SomeJWKResolver keys) valsettings) (CompactJWT tok) = runExceptT $ do
+checkAuthToken (JWTSettings (SomeJWKResolver keys) valsettings) (CompactJWT ctok) = runExceptT $ do
+    tok <- decodeCompact . BL.fromStrict . T.encodeUtf8 $ ctok
     claims <- verifyClaims valsettings keys tok
     let mx = fromJWT claims
     either (throwError . JWTClaimsSetDecodeError . unpack) return mx
@@ -91,7 +81,7 @@ checkJwtLogin settings req = case lookup "Authorization" (requestHeaders req) of
     Nothing -> return Nothing
     Just hdr -> do
         tok <- case parseHeader hdr of
-            Left msg -> delayedFailFatal . authErrorServant $ InvalidRequest msg
+            Left msg -> delayedFailFatal . authErrorServant $ InvalidAuthRequest msg
             Right t -> return t
         mauth <- liftIO $ checkAuthToken settings tok
         case mauth of

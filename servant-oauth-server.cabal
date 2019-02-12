@@ -15,8 +15,11 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
+  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   exposed-modules:     Servant.OAuth.Server
+                     , Servant.OAuth.Server.TokenEndpoint
   build-depends:       base >= 4.7 && < 5
+                     , unordered-containers
                      , servant
                      , servant-server
                      , wai
@@ -27,6 +30,7 @@ library
                      , mtl
                      , bytestring
                      , http-api-data
+                     , time
   default-language:    Haskell2010
 
 source-repository head
