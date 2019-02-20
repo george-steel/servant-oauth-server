@@ -25,18 +25,30 @@ default(Text)
 param :: (ToHttpApiData a) => Text -> a -> Form
 param k x = Form (H.singleton k [toQueryParam x])
 
+qstring :: Form -> B.ByteString
+qstring f = BL.toStrict $ "?" <> urlEncodeForm f
+
 
 newtype CompactJWT = CompactJWT Text deriving (Eq, Show, FromJSON, ToJSON)
-
 instance (FromHttpApiData CompactJWT) where
     parseQueryParam = Right . CompactJWT
     parseHeader h = ((pack . show) +++ CompactJWT) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
-
 instance (ToHttpApiData CompactJWT) where
     toQueryParam (CompactJWT t) = t
     toHeader (CompactJWT t) = "Bearer " <> T.encodeUtf8 t
 
+newtype OpaqueToken = OpaqueToken Text deriving (Eq, Show, FromJSON, ToJSON)
+instance (FromHttpApiData OpaqueToken) where
+    parseQueryParam = Right . OpaqueToken
+    parseHeader h = ((pack . show) +++ OpaqueToken) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
+instance (ToHttpApiData OpaqueToken) where
+    toQueryParam (OpaqueToken t) = t
+    toHeader (OpaqueToken t) = "Bearer " <> T.encodeUtf8 t
+
 newtype RefreshToken = RefreshToken Text
+    deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
+
+newtype OAuthClientId = OAuthClientId Text
     deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
 
 
@@ -59,6 +71,7 @@ data OAuthErrorCode =
     | UnauthorizedClient
     | UnsupportedGrantType
     | InvalidTarget
+    | TemporarilyUnavailabe
     deriving (Eq, Read, Show)
 
 data OAuthFailure = OAuthFailure {
@@ -86,7 +99,8 @@ data OAuthGrantPassword = OAuthGrantPassword {
     gpw_password :: Text }
     deriving (Eq)
 
-newtype OAuthGrantOpaqueAssertion (grant_type :: Symbol) = OAuthGrantOpaqueAssertion Text
+newtype OAuthGrantOpaqueAssertion (grant_type :: Symbol) = OAuthGrantOpaqueAssertion OpaqueToken
+    deriving (Eq, Show, FromHttpApiData, ToHttpApiData)
 
 newtype OAuthGrantJWTAssertion = OAuthGrantJWTAssertion CompactJWT
 

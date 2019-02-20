@@ -11,15 +11,11 @@ import Network.Wai (Request, requestHeaders)
 import Data.Text (Text, unpack, pack)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import Control.Monad.IO.Class
 import Control.Monad.Except
-import Control.Arrow
 import Control.Lens
 import Data.Proxy
-import Data.Aeson
-import Data.Maybe
 
 import Servant.OAuth.Grants
 
