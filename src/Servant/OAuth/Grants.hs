@@ -1,6 +1,19 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, ScopedTypeVariables, GeneralizedNewtypeDeriving,
     GADTs, TypeFamilies, TypeApplications, DefaultSignatures, TypeOperators, DataKinds,
     OverloadedStrings, ExtendedDefaultRules, OverloadedLists #-}
+
+{-|
+Module: Servant.OAuth.Grants
+Description: OAuth2 grant and response types
+Copyright: © 2018-2019 Satsuma labs, 2019 George Steel
+
+This module data types and serialization instances for OAuth token requests and responses.
+The serialization instances require/emit the correct @grant_type@ parameter and marsers may be combined using '(<|>)' for sum types.
+(@sumEncoding = UntaggedValue@ may also be uused if using Aeson TH or Generic instances).
+
+-}
+
+
 module Servant.OAuth.Grants where
 
 
@@ -11,6 +24,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as H
 import Control.Arrow
+import Control.Applicative
 --import Control.Lens
 import Data.Proxy
 import Web.HttpApiData
@@ -22,13 +36,18 @@ import GHC.TypeLits
 
 default(Text)
 
+-- | Created a 'Form' with a single parameter. Combine results using the 'Monoid' instance to create more complex 'Form's.
 param :: (ToHttpApiData a) => Text -> a -> Form
 param k x = Form (H.singleton k [toQueryParam x])
 
+-- | Encode a 'Form' to a URL query string including the initial question mark.
 qstring :: Form -> B.ByteString
 qstring f = BL.toStrict $ "?" <> urlEncodeForm f
 
 
+-- * Tokens
+
+-- | Reperesents a compact-encoded JWT access tokens token in requests and responses. Header encoding includes @Bearer@ prefix.
 newtype CompactJWT = CompactJWT Text deriving (Eq, Show, FromJSON, ToJSON)
 instance (FromHttpApiData CompactJWT) where
     parseQueryParam = Right . CompactJWT
@@ -37,7 +56,8 @@ instance (ToHttpApiData CompactJWT) where
     toQueryParam (CompactJWT t) = t
     toHeader (CompactJWT t) = "Bearer " <> T.encodeUtf8 t
 
-newtype OpaqueToken = OpaqueToken Text deriving (Eq, Show, FromJSON, ToJSON)
+-- | Type for opaque access tokens. Header encoding includes @Bearer@ prefix.
+newtype OpaqueToken = OpaqueToken Text deriving (Eq, Ord, Show, FromJSON, ToJSON)
 instance (FromHttpApiData OpaqueToken) where
     parseQueryParam = Right . OpaqueToken
     parseHeader h = ((pack . show) +++ OpaqueToken) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
@@ -45,14 +65,12 @@ instance (ToHttpApiData OpaqueToken) where
     toQueryParam (OpaqueToken t) = t
     toHeader (OpaqueToken t) = "Bearer " <> T.encodeUtf8 t
 
+-- | Type for refresh tokens. These are always opaque and not used in Authorization headers.
 newtype RefreshToken = RefreshToken Text
     deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
 
-newtype OAuthClientId = OAuthClientId Text
-    deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
 
-
-
+-- | Successful response type for OAuth token endpoints
 data OAuthTokenSuccess = OAuthTokenSuccess {
     oauth_access_token :: CompactJWT,
     oauth_expires_in :: NominalDiffTime,
@@ -62,7 +80,15 @@ data OAuthTokenSuccess = OAuthTokenSuccess {
 instance ToJSON OAuthTokenSuccess where
     toJSON (OAuthTokenSuccess tok expt mrtok) = Object $
         "access_token" .= tok <> "expires_in" .= expt <> maybe mempty ("refresh_token" .=) mrtok
+instance FromJSON OAuthTokenSuccess where
+    parseJSON = withObject "OAuthTokenSuccess" $ \o -> OAuthTokenSuccess
+        <$> o .: "access_token"
+        <*> o .: "expires_in"
+        <*> o .:? "refresh_token"
 
+-- * Errors
+
+-- | OAuth error codes.
 data OAuthErrorCode =
     InvalidGrantRequest
     | InvalidClient
@@ -71,9 +97,10 @@ data OAuthErrorCode =
     | UnauthorizedClient
     | UnsupportedGrantType
     | InvalidTarget
-    | TemporarilyUnavailabe
+    | TemporarilyUnavailable
     deriving (Eq, Read, Show)
 
+-- | Failure response for OAuth token endpoints. Serialize this as the body of an error response.
 data OAuthFailure = OAuthFailure {
     oauth_error :: OAuthErrorCode,
     oauth_error_description :: Maybe Text,
@@ -88,29 +115,42 @@ instance ToJSON OAuthErrorCode where
     toJSON UnauthorizedClient = String "unauthorized_client"
     toJSON UnsupportedGrantType = String "unsupported_grant_type"
     toJSON InvalidTarget = String "invalid_target"
+    toJSON TemporarilyUnavailable = String "temporarily_unavailable"
 
 instance ToJSON OAuthFailure where
     toJSON (OAuthFailure err mdesc muri) = Object $
         "error" .= err <> maybe mempty ("error_description" .=) mdesc <> maybe mempty ("error_uri" .=) muri
 
+-- * Grants
 
+-- | Client identifier for third party clients.
+newtype OAuthClientId = OAuthClientId Text
+    deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
+
+-- | Resource owner credentials grant.
 data OAuthGrantPassword = OAuthGrantPassword {
     gpw_username :: Text,
     gpw_password :: Text }
     deriving (Eq)
 
+-- | Custom assertion grant parameterized by grant_type (which according to spec should be a URI).
+-- Used for federated login with identity providers returning opaque tokens (such as Facebook).
 newtype OAuthGrantOpaqueAssertion (grant_type :: Symbol) = OAuthGrantOpaqueAssertion OpaqueToken
     deriving (Eq, Show, FromHttpApiData, ToHttpApiData)
 
+-- | JWT assertion grant. Use this for OpenID Connect @id_token@s.
 newtype OAuthGrantJWTAssertion = OAuthGrantJWTAssertion CompactJWT
 
+-- | Refresh token grant
+newtype OAuthGrantRefresh = OAuthGrantRefresh RefreshToken
+
+-- | Authorization code grant with PKCE verifier.
 data OAuthGrantCodePKCE = OAuthGrantCodePKCE {
     gcp_code :: Text,
     gcp_code_verifier :: Text
 }
 
-newtype OAuthGrantRefresh = OAuthGrantRefresh RefreshToken
-
+-- | Adds a scope restriction to a grant.
 data WithScope s a = WithScope (Maybe s) a
 
 

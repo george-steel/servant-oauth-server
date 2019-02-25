@@ -7,7 +7,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              George Steel
 maintainer:          george.steel@gmail.com
-copyright:           2019 Satsuma Labs
+copyright:           2018-2019 Satsuma Labs, 2019 George Steel
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
@@ -15,9 +15,11 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-type-defaults -Wno-unused-imports
   exposed-modules:     Servant.OAuth.Server
+                     , Servant.OAuth.Grants
                      , Servant.OAuth.Server.TokenEndpoint
+                     , Servant.OAuth.Server.Facebook
   build-depends:       base >= 4.7 && < 5
                      , unordered-containers
                      , servant
