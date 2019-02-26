@@ -1,7 +1,8 @@
 name:                servant-oauth-server
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            OAuth2 bearer token auth and token endpoint for Servant
+description:         Defines Servant API combinators which require or check for OAuth2 bearer token authentication (with JWT-encoded tokens), verify, and capture claims.
+                     Also includes a token endpoint implementation and utilities for verifying common types of assertion grants (for social login).
 homepage:            https://github.com/george-steel/servant-oauth-server#readme
 license:             BSD3
 license-file:        LICENSE
