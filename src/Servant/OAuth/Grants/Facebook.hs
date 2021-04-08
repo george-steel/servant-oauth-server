@@ -11,7 +11,7 @@ Defines 'checkFacebookAssertion' and sup[porting types which allow facebook acce
 Uses [verification procedure](https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow/) defined in the facebook login docs.
 -}
 
-module Servant.OAuth.Server.Facebook (
+module Servant.OAuth.Grants.Facebook (
     OAuthGrantFacebookAssertion, FacebookUserId(..), FacebookSettings(..),
     checkFacebookAssertion, getFacebookUserInfo,
     FacebookUserInfo(..), FacebookTokenCheck(..), FacebookError(..)
@@ -29,11 +29,17 @@ import Data.Time
 import Data.Time.Clock.POSIX
 
 import Network.HTTP.Client
-import Servant.Server.Internal.ServantErr
+import Servant.Server.Internal.ServerError
 
-import Servant.OAuth.Server
-import Servant.OAuth.Server.TokenEndpoint
+import Servant.OAuth.ResourceServer
+import Servant.OAuth.TokenServer
+import Servant.OAuth.TokenServer.Types
 import Servant.OAuth.Grants
+    ( param,
+      qstring,
+      OAuthClientId,
+      OAuthGrantOpaqueAssertion(..),
+      OpaqueToken )
 
 -- | Specialization of opaque grant assertion for facebook access tokens.
 type OAuthGrantFacebookAssertion = OAuthGrantOpaqueAssertion "https://graph.facebook.com/oauth/access_token"
@@ -86,7 +92,7 @@ data FacebookSettings = FacebookSettings {
 
 -- | Checks a facebook access token and return its user ID as well as the raw response (which includes user info).
 -- Throws invalid grant if token is invalid, expired, ro for the wrong app id.
-checkFacebookAssertion :: (MonadIO m, MonadError ServantErr m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m (FacebookUserId, FacebookTokenCheck)
+checkFacebookAssertion :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m (FacebookUserId, FacebookTokenCheck)
 checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
     atok <- liftIO $ fbTokenProvider settings
     let req = (parseRequest_ "https://graph.facebook.com/debug_token") {
@@ -98,27 +104,27 @@ checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
     result <- case mresp of
         Left e -> do
             liftIO . putStrLn $ "Error checking facebook token: " ++ show e
-            throwServantErrJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error contacting Facebook") Nothing
+            throwServerErrorJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error contacting Facebook") Nothing
         Right resp -> case decode' (responseBody resp) of
             Nothing -> do
                 liftIO . putStrLn $ "Error decoding facebook token check"
-                throwServantErrJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error decoding facebook token check") Nothing
+                throwServerErrorJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error decoding facebook token check") Nothing
             Just (FBData x) -> return x
     uid <- case result of
-        BogusToken {} -> throwServantErrJSON err401 $ OAuthFailure InvalidGrant (Just "Unrecognised Facebook token") Nothing
+        BogusToken {} -> throwServerErrorJSON err401 $ OAuthFailure InvalidGrant (Just "Unrecognised Facebook token") Nothing
         RecognisedToken {ftc_is_valid = valid}
             | valid -> return (ftc_user_id result)
-            | otherwise -> throwServantErrJSON err401 $ OAuthFailure InvalidGrant (Just "Invalid Facebook token") Nothing
+            | otherwise -> throwServerErrorJSON err401 $ OAuthFailure InvalidGrant (Just "Invalid Facebook token") Nothing
     return (uid, result)
 
 -- | Retrieves user info given a valid facebook token. Use this to get infor cor creating a new user entry.
-getFacebookUserInfo :: (MonadIO m, MonadError ServantErr m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m FacebookUserInfo
+getFacebookUserInfo :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m FacebookUserInfo
 getFacebookUserInfo settings (OAuthGrantOpaqueAssertion tok) = do
     let req = (parseRequest_ "https://graph.facebook.com/v3.2/me?fields=id,name,short_name,email") {
             requestHeaders = [("Authorization", toHeader tok), ("Accept", "application/json")]}
     mresp :: Either HttpException (Response BL.ByteString) <- liftIO . try $ httpLbs req (fbHttp settings)
     case mresp of
-        Left _ -> throwServantErrJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error contacting Facebook") Nothing
+        Left _ -> throwServerErrorJSON err502 $ OAuthFailure TemporarilyUnavailable (Just "Error contacting Facebook") Nothing
         Right resp -> case decode' (responseBody resp) of
-            Nothing -> throwServantErrJSON err401 $ OAuthFailure InvalidGrant (Just "Unable to fetch registration info") Nothing
+            Nothing -> throwServerErrorJSON err401 $ OAuthFailure InvalidGrant (Just "Unable to fetch registration info") Nothing
             Just u -> return u

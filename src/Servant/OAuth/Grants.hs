@@ -34,6 +34,9 @@ import Data.Maybe
 import Data.Time
 import GHC.TypeLits
 
+import Servant.OAuth.ResourceServer.Types
+import Servant.OAuth.TokenServer.Types
+
 default(Text)
 
 -- | Created a 'Form' with a single parameter. Combine results using the 'Monoid' instance to create more complex 'Form's.
@@ -47,15 +50,6 @@ qstring f = BL.toStrict $ "?" <> urlEncodeForm f
 
 -- * Tokens
 
--- | Reperesents a compact-encoded JWT access tokens token in requests and responses. Header encoding includes @Bearer@ prefix.
-newtype CompactJWT = CompactJWT Text deriving (Eq, Show, FromJSON, ToJSON)
-instance (FromHttpApiData CompactJWT) where
-    parseQueryParam = Right . CompactJWT
-    parseHeader h = ((pack . show) +++ CompactJWT) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
-instance (ToHttpApiData CompactJWT) where
-    toQueryParam (CompactJWT t) = t
-    toHeader (CompactJWT t) = "Bearer " <> T.encodeUtf8 t
-
 -- | Type for opaque access tokens. Header encoding includes @Bearer@ prefix.
 newtype OpaqueToken = OpaqueToken Text deriving (Eq, Ord, Show, FromJSON, ToJSON)
 instance (FromHttpApiData OpaqueToken) where
@@ -64,62 +58,6 @@ instance (FromHttpApiData OpaqueToken) where
 instance (ToHttpApiData OpaqueToken) where
     toQueryParam (OpaqueToken t) = t
     toHeader (OpaqueToken t) = "Bearer " <> T.encodeUtf8 t
-
--- | Type for refresh tokens. These are always opaque and not used in Authorization headers.
-newtype RefreshToken = RefreshToken Text
-    deriving (Ord, Eq, Read, Show, ToHttpApiData, FromHttpApiData, ToJSON, FromJSON)
-
-
--- | Successful response type for OAuth token endpoints
-data OAuthTokenSuccess = OAuthTokenSuccess {
-    oauth_access_token :: CompactJWT,
-    oauth_expires_in :: NominalDiffTime,
-    oauth_refresh_token :: Maybe RefreshToken}
-    deriving (Eq, Show)
-
-instance ToJSON OAuthTokenSuccess where
-    toJSON (OAuthTokenSuccess tok expt mrtok) = Object $
-        "access_token" .= tok <> "expires_in" .= expt <> maybe mempty ("refresh_token" .=) mrtok
-instance FromJSON OAuthTokenSuccess where
-    parseJSON = withObject "OAuthTokenSuccess" $ \o -> OAuthTokenSuccess
-        <$> o .: "access_token"
-        <*> o .: "expires_in"
-        <*> o .:? "refresh_token"
-
--- * Errors
-
--- | OAuth error codes.
-data OAuthErrorCode =
-    InvalidGrantRequest
-    | InvalidClient
-    | InvalidGrant
-    | InvalidScope
-    | UnauthorizedClient
-    | UnsupportedGrantType
-    | InvalidTarget
-    | TemporarilyUnavailable
-    deriving (Eq, Read, Show)
-
--- | Failure response for OAuth token endpoints. Serialize this as the body of an error response.
-data OAuthFailure = OAuthFailure {
-    oauth_error :: OAuthErrorCode,
-    oauth_error_description :: Maybe Text,
-    oauth_error_uri :: Maybe Text}
-    deriving (Eq, Read, Show)
-
-instance ToJSON OAuthErrorCode where
-    toJSON InvalidGrantRequest = String "invalid_request"
-    toJSON InvalidClient = String "invalid_client"
-    toJSON InvalidGrant = String "invalid_grant"
-    toJSON InvalidScope = String "invalid_scope"
-    toJSON UnauthorizedClient = String "unauthorized_client"
-    toJSON UnsupportedGrantType = String "unsupported_grant_type"
-    toJSON InvalidTarget = String "invalid_target"
-    toJSON TemporarilyUnavailable = String "temporarily_unavailable"
-
-instance ToJSON OAuthFailure where
-    toJSON (OAuthFailure err mdesc muri) = Object $
-        "error" .= err <> maybe mempty ("error_description" .=) mdesc <> maybe mempty ("error_uri" .=) muri
 
 -- * Grants
 
@@ -211,38 +149,38 @@ instance ToJSON OAuthGrantRefresh where
 
 instance (ToJSON s, ToJSON a) => ToJSON (WithScope s a) where
     toJSON (WithScope Nothing x) = toJSON x
-    toJSON (WithScope (Just s) x) = let Object o = toJSON x in Object (H.insert "scope" (toJSON x) o)
+    toJSON (WithScope (Just s) x) = let Object o = toJSON x in Object (H.insert "scope" (toJSON s) o)
 
 
 instance FromForm OAuthGrantPassword where
     fromForm f = lookupUnique "grant_type" f >>= \gt ->
         if gt == "password"
         then OAuthGrantPassword <$> parseUnique "username" f <*> parseUnique "password" f
-        else fail "wrong grant type"
+        else Left "wrong grant type"
 
 instance (KnownSymbol gt) => FromForm (OAuthGrantOpaqueAssertion gt) where
     fromForm f = parseUnique "grant_type" f >>= \pgt ->
         if pgt == (symbolVal (Proxy @gt))
         then OAuthGrantOpaqueAssertion <$> parseUnique "assertion" f
-        else fail "wrong grant type"
+        else Left "wrong grant type"
 
 instance FromForm OAuthGrantJWTAssertion where
     fromForm f = lookupUnique "grant_type" f >>= \gt ->
         if gt == "urn:ietf:params:oauth:grant-type:jwt-bearer"
         then OAuthGrantJWTAssertion <$> parseUnique "assertion" f
-        else fail "wrong grant type"
+        else Left "wrong grant type"
 
 instance FromForm OAuthGrantCodePKCE where
     fromForm f = lookupUnique "grant_type" f >>= \gt ->
         if gt == "authorization_code"
         then OAuthGrantCodePKCE <$> parseUnique "code" f <*> parseUnique "code_verifier" f
-        else fail "wrong grant type"
+        else Left "wrong grant type"
 
 instance FromForm OAuthGrantRefresh where
     fromForm f = lookupUnique "grant_type" f >>= \gt ->
         if gt == "refresh_token"
         then OAuthGrantRefresh <$> parseUnique "refresh_token" f
-        else fail "wrong grant type"
+        else Left "wrong grant type"
 
 instance (FromHttpApiData s, FromForm a) => FromForm (WithScope s a) where
     fromForm f = WithScope <$> parseMaybe "scope" f <*> fromForm f
