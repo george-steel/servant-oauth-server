@@ -17,6 +17,7 @@ module Servant.OAuth.JWT
 
     -- * Signing
     JWTSignSettings (..),
+    mkTestJWTSignSettings,
     makeAccessToken,
   )
 where
@@ -27,6 +28,9 @@ import Control.Monad.Except
     MonadError (throwError),
     runExceptT,
   )
+import Control.Monad.IO.Class
+import Crypto.JOSE.JWA.JWK (Crv (P_256))
+import Crypto.JOSE.JWK
 import Crypto.JWT
   ( ClaimsSet,
     Error,
@@ -43,6 +47,7 @@ import Crypto.JWT
     claimIat,
     claimSub,
     decodeCompact,
+    emptyClaimsSet,
     encodeCompact,
     jwkAlg,
     jwkKid,
@@ -118,6 +123,15 @@ data JWTSignSettings = JWTSignSettings
     jwtInitialClaims :: ClaimsSet,
     jwtDuration :: NominalDiffTime
   }
+
+-- | Generate a simple set of crypto credentials for a token server.  Get familiar with `jose`
+-- if you want a `JWTSignSettings` that is ready for production.
+mkTestJWTSignSettings :: MonadIO m => m JWTSignSettings
+mkTestJWTSignSettings =
+  JWTSignSettings
+    <$> liftIO (genJWK (ECGenParam P_256))
+    <*> pure emptyClaimsSet
+    <*> pure 5
 
 -- | Creates a JWT from User entity and a signing key valid for a given length of time.
 -- The JWK in the settings must be a valid signing key.
