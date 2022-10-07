@@ -1,14 +1,15 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Servant.OAuth.ResourceServer.Types where
 
-import Web.HttpApiData
-import Data.Text (Text, unpack, pack)
-import qualified Data.Text.Encoding as T
+import Control.Arrow ((+++))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.ByteString as B
-import Data.Aeson ( FromJSON, ToJSON )
-import Control.Arrow( (+++) )
 import Data.Maybe
+import Data.Text (Text, pack, unpack)
+import qualified Data.Text.Encoding as T
+import Web.HttpApiData
 
 -- * API combinators
 
@@ -20,20 +21,20 @@ data AuthRequired claim
 -- Use this for an endpoint with mixed public and private content (possibly depending on a parameter).
 data AuthOptional claim
 
-
-data AuthError =
-    AuthRequired Text
-    | InvalidAuthRequest Text
-    | InvalidToken Text
-    | InsufficientScope Text
-    deriving (Eq, Read, Show)
-
+data AuthError
+  = AuthRequired Text
+  | InvalidAuthRequest Text
+  | InvalidToken Text
+  | InsufficientScope Text
+  deriving (Eq, Read, Show)
 
 -- | Reperesents a compact-encoded JWT access tokens token in requests and responses. Header encoding includes @Bearer@ prefix.
 newtype CompactJWT = CompactJWT Text deriving (Eq, Show, FromJSON, ToJSON)
+
 instance (FromHttpApiData CompactJWT) where
-    parseQueryParam = Right . CompactJWT
-    parseHeader h = ((pack . show) +++ CompactJWT) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
+  parseQueryParam = Right . CompactJWT
+  parseHeader h = ((pack . show) +++ CompactJWT) . T.decodeUtf8' . fromMaybe h $ B.stripPrefix "Bearer " h
+
 instance (ToHttpApiData CompactJWT) where
-    toQueryParam (CompactJWT t) = t
-    toHeader (CompactJWT t) = "Bearer " <> T.encodeUtf8 t
+  toQueryParam (CompactJWT t) = t
+  toHeader (CompactJWT t) = "Bearer " <> T.encodeUtf8 t
