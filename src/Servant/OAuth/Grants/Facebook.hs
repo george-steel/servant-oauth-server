@@ -142,7 +142,7 @@ checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
       | otherwise -> throwServerErrorJSON err401 $ OAuthFailure InvalidGrant (Just "Invalid Facebook token") Nothing
   return (uid, result)
 
--- | Retrieves user info given a valid facebook token. Use this to get infor cor creating a new user entry.
+-- | Retrieves user info given a valid facebook token. Use this to get info for creating a new user entry.
 getFacebookUserInfo :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m FacebookUserInfo
 getFacebookUserInfo settings (OAuthGrantOpaqueAssertion tok) = do
   let req =
