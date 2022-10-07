@@ -57,12 +57,6 @@
               # For cabal
               pkgs.pkg-config
               pkgs.binutils
-
-              # For CI
-              pkgs.jq
-              pkgs.dhall
-              pkgs.dhall-json
-              pkgs.fly
             ];
           };
           servant-oauth-server-ghc924 = ghc924Pkgs.servant-oauth-server;
