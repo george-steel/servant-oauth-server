@@ -39,8 +39,8 @@ import Servant.OAuth.ResourceServer.Types
 import Servant.Server
 import Servant.Server.Internal
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a) => HasServer (AuthRequired a :> api) context where
-  type ServerT (AuthRequired a :> api) m = a -> ServerT api m
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthRequired claim :> api) context where
+  type ServerT (AuthRequired claim :> api) m = claim -> ServerT api m
 
   route _ context subserver = route (Proxy @api) context (addAuthCheck subserver authCheck)
     where
@@ -49,8 +49,8 @@ instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a)
 
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a) => HasServer (AuthOptional a :> api) context where
-  type ServerT (AuthOptional a :> api) m = Maybe a -> ServerT api m
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthOptional claim :> api) context where
+  type ServerT (AuthOptional claim :> api) m = Maybe claim -> ServerT api m
 
   route Proxy context subserver = route (Proxy :: Proxy api) context (addAuthCheck subserver authCheck)
     where
