@@ -112,7 +112,7 @@ data FacebookSettings = FacebookSettings
   }
 
 -- | Checks a facebook access token and return its user ID as well as the raw response (which includes user info).
--- Throws invalid grant if token is invalid, expired, ro for the wrong app id.
+-- Throws invalid grant if token is invalid, expired, or for the wrong app id.
 checkFacebookAssertion :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m (FacebookUserId, FacebookTokenCheck)
 checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
   atok <- liftIO $ fbTokenProvider settings
