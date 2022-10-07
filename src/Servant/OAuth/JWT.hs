@@ -102,12 +102,12 @@ data JWTSignSettings = JWTSignSettings
 makeAccessToken :: (ToJWT a) => JWTSignSettings -> a -> IO CompactJWT
 makeAccessToken settings x = do
   now <- getCurrentTime
-  let claimsSet =
+  let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
           & claimIat ?~ NumericDate now
           & consClaims x
       Just (JWSAlg kalg) = jwtSignKey settings ^. jwkAlg -- requires valid key
       hdr = newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
-  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr claimsSet
+  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok

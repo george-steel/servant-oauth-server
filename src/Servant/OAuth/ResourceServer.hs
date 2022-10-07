@@ -89,6 +89,6 @@ throwForbidden = throwError . authErrorServant . InsufficientScope
 
 -- | Throw a unauthorized or forbidden error depending on the whether the claims are 'Nothing' or 'Just'.
 -- For use in endpoints using 'AuthOptional'.
-throwForbiddenOrLogin :: (FromJWT auth, MonadError ServerError m) => Maybe auth -> Text -> m a
+throwForbiddenOrLogin :: (MonadError ServerError m) => Maybe auth -> Text -> m a
 throwForbiddenOrLogin (Just _) = throwForbidden
 throwForbiddenOrLogin Nothing = throwError . authErrorServant . AuthRequired
