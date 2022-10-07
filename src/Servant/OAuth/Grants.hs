@@ -25,9 +25,8 @@ module Servant.OAuth.Grants where
 
 import Control.Applicative
 import Control.Arrow
---import Control.Lens
-
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as H
@@ -155,7 +154,7 @@ instance ToJSON OAuthGrantRefresh where
 
 instance (ToJSON s, ToJSON a) => ToJSON (WithScope s a) where
   toJSON (WithScope Nothing x) = toJSON x
-  toJSON (WithScope (Just s) x) = let Object o = toJSON x in Object (H.insert "scope" (toJSON s) o)
+  toJSON (WithScope (Just s) x) = let Object o = toJSON x in Object (KeyMap.insert "scope" (toJSON s) o)
 
 instance FromForm OAuthGrantPassword where
   fromForm f =

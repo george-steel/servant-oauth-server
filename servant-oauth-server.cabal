@@ -31,7 +31,7 @@ library
                      , wai
                      , text
                      , jose
-                     , aeson
+                     , aeson >= 2
                      , lens
                      , mtl
                      , bytestring
