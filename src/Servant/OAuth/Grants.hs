@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,11 +6,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
 -- |
 -- Module: Servant.OAuth.Grants
@@ -23,7 +20,6 @@
 -- (@sumEncoding = UntaggedValue@ may also be uused if using Aeson TH or Generic instances).
 module Servant.OAuth.Grants where
 
-import Control.Applicative
 import Control.Arrow
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -32,10 +28,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as H
 import Data.Maybe
 import Data.Proxy
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
+import Data.Text (Text, pack)
 import qualified Data.Text.Encoding as T
-import Data.Time
 import GHC.TypeLits
 import Servant.OAuth.ResourceServer.Types
 import Servant.OAuth.TokenServer.Types

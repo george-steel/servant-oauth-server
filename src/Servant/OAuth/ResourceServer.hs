@@ -28,14 +28,10 @@ module Servant.OAuth.ResourceServer
   )
 where
 
-import Control.Lens
 import Control.Monad.Except
-import Control.Monad.IO.Class
-import Crypto.JWT
 import qualified Data.ByteString.Lazy as BL
 import Data.Proxy
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
+import Data.Text (Text, pack)
 import qualified Data.Text.Encoding as T
 import Network.Wai (Request, requestHeaders)
 import Servant.API

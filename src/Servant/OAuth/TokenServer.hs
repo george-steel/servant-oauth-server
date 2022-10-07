@@ -26,21 +26,10 @@ module Servant.OAuth.TokenServer
   )
 where
 
-import Control.Applicative
-import Control.Lens
 import Control.Monad.Except
-import Control.Monad.IO.Class
-import Crypto.JWT
 import Data.Aeson
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import Data.Time
-import Servant.API
+import Data.Text (Text)
 import Servant.OAuth.JWT
-import Servant.OAuth.ResourceServer
 import Servant.OAuth.TokenServer.Types
 import Servant.Server
 

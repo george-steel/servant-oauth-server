@@ -35,12 +35,10 @@ where
 
 import Control.Exception
 import Control.Monad.Except
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text)
-import Data.Time
 import Data.Time.Clock.POSIX
 import Network.HTTP.Client
 import Servant.OAuth.Grants
@@ -50,7 +48,6 @@ import Servant.OAuth.Grants
     param,
     qstring,
   )
-import Servant.OAuth.ResourceServer
 import Servant.OAuth.TokenServer
 import Servant.OAuth.TokenServer.Types
 import Servant.Server.Internal.ServerError

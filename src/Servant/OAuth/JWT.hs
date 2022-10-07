@@ -29,8 +29,7 @@ import Control.Monad.Except
   )
 import Crypto.JWT
 import qualified Data.ByteString.Lazy as BL
-import Data.Maybe
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Time
 import Servant.OAuth.ResourceServer.Types

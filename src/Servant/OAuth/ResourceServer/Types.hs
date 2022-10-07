@@ -7,7 +7,7 @@ import Control.Arrow ((+++))
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.ByteString as B
 import Data.Maybe
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack)
 import qualified Data.Text.Encoding as T
 import Web.HttpApiData
 
