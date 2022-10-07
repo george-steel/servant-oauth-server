@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-type-defaults -Wno-unused-imports -fno-warn-orphans
+  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   exposed-modules:     Servant.OAuth.ResourceServer
                      , Servant.OAuth.ResourceServer.Types
                      , Servant.OAuth.JWT
