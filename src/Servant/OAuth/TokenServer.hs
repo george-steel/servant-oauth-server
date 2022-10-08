@@ -4,8 +4,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
 
 -- |
 -- Module: Servant.OAuth.Server.TokenEndpoint
@@ -26,8 +24,13 @@ module Servant.OAuth.TokenServer
   )
 where
 
+import Control.Lens (prism)
+import Control.Lens.Combinators (Prism')
 import Control.Monad.Except
+import Crypto.JOSE (AsError (_Error), Error)
+import Crypto.JWT (MonadRandom)
 import Data.Aeson
+import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Servant.OAuth.JWT
 import Servant.OAuth.TokenServer.Types
@@ -38,7 +41,7 @@ import Servant.Server
 -- which should throw an error (using 'throwInvalidGrant') in the event of an invalid grant.
 tokenEndpointNoRefresh ::
   forall m grant claims contentTypes.
-  (MonadIO m, MonadError ServerError m, ToJWT claims) =>
+  (MonadIO m, MonadRandom m, MonadError ServerError m, ToJWT claims) =>
   JWTSignSettings ->
   (grant -> m claims) ->
   ServerT (OAuthTokenEndpoint' contentTypes grant) m
@@ -46,15 +49,47 @@ tokenEndpointNoRefresh signSettings doAuth = \case
   Left _ -> throwServerErrorJSON err400 $ OAuthFailure InvalidGrantRequest (Just "unable to parse token request") Nothing
   Right grant -> do
     claims <- doAuth grant
-    tok <- liftIO $ makeAccessToken signSettings claims
+    tok <- makeAccessToken signSettings claims
     return $ OAuthTokenSuccess tok (jwtDuration signSettings) Nothing
+
+instance AsError ServerError where
+  _Error :: Prism' ServerError Error
+  _Error = prism one two
+    where
+      one :: Error -> ServerError
+      one err =
+        ServerError
+          { errHTTPCode = 400,
+            errReasonPhrase = "could-not-sign-oauth-token",
+            errBody = cs $ show err,
+            errHeaders = []
+          }
+
+      two :: ServerError -> Either ServerError Error
+      two = Left -- TODO: this could use some more love.
+
+instance AsMakeAccessTokenError ServerError where
+  _MakeAccessTokenError :: Prism' ServerError MakeAccessTokenError
+  _MakeAccessTokenError = prism one two
+    where
+      one :: MakeAccessTokenError -> ServerError
+      one err =
+        ServerError
+          { errHTTPCode = 400,
+            errReasonPhrase = "could-not-construct-oauth-token",
+            errBody = cs $ show err,
+            errHeaders = []
+          }
+
+      two :: ServerError -> Either ServerError MakeAccessTokenError
+      two = Left -- TODO: this could use some more love.
 
 -- | Token endpoint with refresh tokens.
 -- Takes signing settings, an action to create and store a refresh token, and an action to validate grants and return claims.
 -- The validation action must also return a Bool indicating whether a refresh token is to be created.
 tokenEndpointWithRefresh ::
   forall m grant claims contentTypes.
-  (MonadIO m, MonadError ServerError m, ToJWT claims) =>
+  (MonadIO m, MonadRandom m, MonadError ServerError m, ToJWT claims) =>
   JWTSignSettings ->
   (claims -> m RefreshToken) ->
   (grant -> m (claims, Bool)) ->
@@ -67,7 +102,7 @@ tokenEndpointWithRefresh signSettings makeRefresh doAuth = \case
       if shouldRefresh
         then fmap Just (makeRefresh claims)
         else return Nothing
-    tok <- liftIO $ makeAccessToken signSettings claims
+    tok <- makeAccessToken signSettings claims
     return $ OAuthTokenSuccess tok (jwtDuration signSettings) rtok
 
 -- | Throws a 'ServerError' with a JSON formatted body.

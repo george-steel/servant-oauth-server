@@ -28,15 +28,17 @@ library
   build-depends:       base
                      , aeson >= 2
                      , bytestring
+                     , cryptonite >= 0.24
                      , http-api-data
                      , http-client
                      , http-types
-                     , jose
+                     , jose >= 0.10
                        -- in case jose needs work: know that there is also https://github.com/tekul/jose-jwt
                      , lens
                      , mtl
                      , servant
                      , servant-server
+                     , string-conversions
                      , text
                      , time
                      , unordered-containers
@@ -88,8 +90,9 @@ test-suite spec
   other-modules:
     ThingsSpec
   build-depends:       base
-                     , aeson >= 2
+                     , aeson
                      , bytestring
+                     , cryptonite
                      , hspec
                      , hspec-wai
                      , http-api-data
@@ -101,8 +104,10 @@ test-suite spec
                      , servant
                      , servant-oauth-server
                      , servant-server
+                     , string-conversions
                      , text
                      , time
+                     , transformers
                      , unordered-containers
                      , wai
   build-tool-depends:  hspec-discover:hspec-discover

@@ -1,14 +1,21 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module ThingsSpec where
 
+import Control.Monad (liftM)
+import Control.Monad.Error.Class (MonadError, catchError, throwError)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.Except (ExceptT, throwE)
+import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson
 import Data.Proxy
+import Data.String.Conversions (cs)
 import Data.Text
 import Network.Wai
 import Servant.API
 import Servant.OAuth.Grants (OAuthGrantOpaqueAssertion (..), OpaqueToken (..))
 import Servant.OAuth.Grants.Facebook
 import Servant.OAuth.JWT
-import Servant.OAuth.JWT (CompactJWT (..))
 import Servant.OAuth.TokenServer
 import Servant.OAuth.TokenServer.Types
 import Servant.Server
@@ -18,15 +25,28 @@ import Test.Hspec.Wai.Matcher
 
 ------------------------------
 
-type API = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] Text
+type TokenServerAPI = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
+
+tokenServerApp :: IO Application
+tokenServerApp = do
+  signSettings <- mkTestJWTSignSettings
+  pure $ serve (Proxy @TokenServerAPI) (runTokenServerM . tokenEndpointNoRefresh signSettings tokenHandler)
+
+tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
+tokenHandler = pure . ClaimSub . cs . show
+
+newtype TokenServerM a = TokenServerM {runTokenServerM :: Handler a}
+  deriving newtype (Functor, Applicative, Monad, MonadIO)
+
+instance MonadRandom TokenServerM where
+  getRandomBytes = undefined
+
+instance MonadError ServerError TokenServerM where
+  throwError = TokenServerM . Handler . throwE
+  catchError = undefined
 
 app :: IO Application
-app = do
-  signSettings <- mkTestJWTSignSettings
-  pure $ serve (Proxy @API) $ tokenEndpointNoRefresh signSettings tokenHandler
-
-tokenHandler :: forall grant claims. Text -> Handler (ClaimSub Text)
-tokenHandler = pure . ClaimSub
+app = tokenServerApp
 
 spec :: Spec
 spec = with app $ do

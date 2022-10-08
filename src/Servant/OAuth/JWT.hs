@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- TODO: how much of this should live in `jose`?
 module Servant.OAuth.JWT
   ( -- * Tokens
     FromJWT (..),
@@ -19,44 +21,24 @@ module Servant.OAuth.JWT
     JWTSignSettings (..),
     mkTestJWTSignSettings,
     makeAccessToken,
+    MakeAccessTokenError (..),
+    AsMakeAccessTokenError (..),
   )
 where
 
 import Control.Lens
+import Control.Monad.Error.Lens (throwing)
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
     runExceptT,
   )
 import Control.Monad.IO.Class
-import Crypto.JOSE.JWA.JWK (Crv (P_256))
 import Crypto.JOSE.JWK
 import Crypto.JWT
-  ( ClaimsSet,
-    Error,
-    HasKid (kid),
-    HeaderParam (HeaderParam),
-    JWK,
-    JWKAlg (JWSAlg),
-    JWSHeader,
-    JWTError (JWTClaimsSetDecodeError),
-    JWTValidationSettings,
-    NumericDate (NumericDate),
-    VerificationKeyStore,
-    claimExp,
-    claimIat,
-    claimSub,
-    decodeCompact,
-    emptyClaimsSet,
-    encodeCompact,
-    jwkAlg,
-    jwkKid,
-    newJWSHeader,
-    signClaims,
-    string,
-    verifyClaims,
-  )
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy.Char8 (ByteString)
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Time
@@ -133,17 +115,66 @@ mkTestJWTSignSettings =
     <*> pure emptyClaimsSet
     <*> pure 5
 
+-- | The error type of `makeAccessToken`.
+--
+-- TODO: we're creating classy prisms for this in the spirit of what `jose` does with `Error`,
+-- but this is a bit messy and doesn't scale.  Some ideas:
+--
+-- (1) use `sop-core`-style open sum types for errors, which would require a lot of
+-- refactoring here, and ideally in jose.
+--
+-- (2) use the `MonadIO` constraint in `makeAccessToken` to run `signClaims` from the `jose`
+-- library, extract the error as an `Either` using `runExceptT`, and put everything back
+-- together in the abstract return monad.  Or introduce a `newtype` for the monad we want to
+-- run this in, which instantiates all the constraints for `signClaims`.  But it seems if we
+-- run `signClaims` in *any* concrete monad here, we lose the abstract m that is concretized
+-- elsewhere, and that has been given a concrete `MonadRandom` instance by the library user
+-- for security reasons.
+--
+-- So (2) seems a non-solution; (1) may be worth pursuing at some point in the future.  For
+-- now, we'll stick with the classy prisms mess.
+data MakeAccessTokenError
+  = MakeAccessTokenNoAlg ByteString
+  | MakeAccessTokenEncNotSig ByteString
+  | MakeAccessTokenJoseError Error
+  deriving (Eq, Show)
+
+makeClassyPrisms ''MakeAccessTokenError
+
+instance AsError MakeAccessTokenError where
+  _Error :: Prism' MakeAccessTokenError Error
+  _Error = prism one two
+    where
+      one :: Error -> MakeAccessTokenError
+      one = MakeAccessTokenJoseError
+
+      two :: MakeAccessTokenError -> Either MakeAccessTokenError Error
+      two = \case
+        MakeAccessTokenJoseError err -> Right err
+        other -> Left other
+
 -- | Creates a JWT from User entity and a signing key valid for a given length of time.
 -- The JWK in the settings must be a valid signing key.
-makeAccessToken :: (ToJWT a) => JWTSignSettings -> a -> IO CompactJWT
+makeAccessToken ::
+  forall m e a.
+  (MonadIO m, MonadRandom m, MonadError e m, AsError e, AsMakeAccessTokenError e, ToJWT a) =>
+  JWTSignSettings ->
+  a ->
+  m CompactJWT
 makeAccessToken settings x = do
-  now <- getCurrentTime
+  now <- liftIO getCurrentTime
+  kalg <- do
+    let thrw :: AReview e ByteString -> m x
+        thrw cns = throwing cns (A.encode (jwtSignKey settings))
+    jwtSignKey settings ^. jwkAlg & \case
+      Just (JWSAlg kalg) -> pure kalg
+      Just (JWEAlg _) -> thrw _MakeAccessTokenEncNotSig
+      Nothing -> thrw _MakeAccessTokenNoAlg
   let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
           & claimIat ?~ NumericDate now
           & consClaims x
-      Just (JWSAlg kalg) = jwtSignKey settings ^. jwkAlg -- requires valid key
       hdr = newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
-  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr cset
+  tok <- signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok
