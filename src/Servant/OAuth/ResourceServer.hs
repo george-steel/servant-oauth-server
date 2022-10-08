@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-redundant-constraints #-}
 
 -- |
 -- Module: Servant.OAuth.ResourceServer
