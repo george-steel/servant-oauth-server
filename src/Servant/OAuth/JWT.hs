@@ -28,6 +28,29 @@ import Control.Monad.Except
     runExceptT,
   )
 import Crypto.JWT
+  ( ClaimsSet,
+    Error,
+    HasKid (kid),
+    HeaderParam (HeaderParam),
+    JWK,
+    JWKAlg (JWSAlg),
+    JWSHeader,
+    JWTError (JWTClaimsSetDecodeError),
+    JWTValidationSettings,
+    NumericDate (NumericDate),
+    VerificationKeyStore,
+    claimExp,
+    claimIat,
+    claimSub,
+    decodeCompact,
+    encodeCompact,
+    jwkAlg,
+    jwkKid,
+    newJWSHeader,
+    signClaims,
+    string,
+    verifyClaims,
+  )
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
