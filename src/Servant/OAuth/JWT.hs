@@ -39,8 +39,10 @@ import Crypto.JWT
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 (ByteString)
+import Data.String.Conversions (cs)
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
+import Data.Text.Strict.Lens (utf8)
 import Data.Time
 import Servant.OAuth.ResourceServer.Types
 import Web.HttpApiData
@@ -105,15 +107,25 @@ data JWTSignSettings = JWTSignSettings
     jwtInitialClaims :: ClaimsSet,
     jwtDuration :: NominalDiffTime
   }
+  deriving (Eq, Show)
 
 -- | Generate a simple set of crypto credentials for a token server.  Get familiar with `jose`
--- if you want a `JWTSignSettings` that is ready for production.
+-- if you want a `JWTSignSettings` that is ready for production.  Start with
+-- `hs-jose/example/Main.hs`.
 mkTestJWTSignSettings :: MonadIO m => m JWTSignSettings
 mkTestJWTSignSettings =
   JWTSignSettings
-    <$> liftIO (genJWK (ECGenParam P_256))
+    <$> liftIO (tweak <$> genJWK (OKPGenParam Ed25519))
     <*> pure emptyClaimsSet
     <*> pure 5
+  where
+    tweak k = f k
+      where
+        f = (jwkUse ?~ Sig) . (jwkKeyOps ?~ [Sign, Verify]) . (jwkKid ?~ kid')
+        -- FUTUREWORK: _jwkAlg = Nothing, _jwkX5u = Nothing, _jwkX5cRaw = Nothing, _jwkX5t = Nothing, _jwkX5tS256 = Nothing
+        -- (https://www.rfc-editor.org/rfc/rfc7517#section-4)
+        h = view thumbprint k :: Digest SHA256
+        kid' = view (re (base64url . digest) . utf8) h
 
 -- | The error type of `makeAccessToken`.
 --
