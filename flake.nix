@@ -3,10 +3,8 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.mtl.url = "https://hackage.haskell.org/package/mtl-2.3/mtl-2.3.tar.gz";
-  inputs.mtl.flake = false;
 
-  outputs = inputs@{nixpkgs, flake-utils, ...}:
+  outputs = {nixpkgs, flake-utils, ...}:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -32,7 +30,6 @@
           servant-oauth-server =  pkgs.haskell.lib.overrideSrc (hsuper.callPackage ./default.nix {}) {
             src = filteredSource;
           };
-          mtl = hsuper.callCabal2nix "mtl" inputs.mtl {};
         };
         ghc924Pkgs = pkgs.haskell.packages.ghc924.override {
           overrides = ghcOverrides;
