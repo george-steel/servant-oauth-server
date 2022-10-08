@@ -37,11 +37,11 @@ import Servant.Server
 -- Takes in token signing settings and an action to verify grants and convert them to token claims,
 -- which should throw an error (using 'throwInvalidGrant') in the event of an invalid grant.
 tokenEndpointNoRefresh ::
-  forall m grant claims.
+  forall m grant claims contentTypes.
   (MonadIO m, MonadError ServerError m, ToJWT claims) =>
   JWTSignSettings ->
   (grant -> m claims) ->
-  ServerT (OAuthTokenEndpoint grant) m
+  ServerT (OAuthTokenEndpoint' contentTypes grant) m
 tokenEndpointNoRefresh signSettings doAuth = \case
   Left _ -> throwServerErrorJSON err400 $ OAuthFailure InvalidGrantRequest (Just "unable to parse token request") Nothing
   Right grant -> do
@@ -53,12 +53,12 @@ tokenEndpointNoRefresh signSettings doAuth = \case
 -- Takes signing settings, an action to create and store a refresh token, and an action to validate grants and return claims.
 -- The validation action must also return a Bool indicating whether a refresh token is to be created.
 tokenEndpointWithRefresh ::
-  forall m grant claims.
+  forall m grant claims contentTypes.
   (MonadIO m, MonadError ServerError m, ToJWT claims) =>
   JWTSignSettings ->
   (claims -> m RefreshToken) ->
   (grant -> m (claims, Bool)) ->
-  ServerT (OAuthTokenEndpoint grant) m
+  ServerT (OAuthTokenEndpoint' contentTypes grant) m
 tokenEndpointWithRefresh signSettings makeRefresh doAuth = \case
   Left _ -> throwServerErrorJSON err400 $ OAuthFailure InvalidGrantRequest (Just "unable to parse token request") Nothing
   Right grant -> do

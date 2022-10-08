@@ -8,6 +8,7 @@ module Servant.OAuth.TokenServer.Types where
 import Data.Aeson
 import Data.Text (Text)
 import Data.Time
+import GHC.Base
 import Servant
 import Servant.OAuth.ResourceServer.Types
 
@@ -74,4 +75,7 @@ instance ToJSON OAuthFailure where
 -- The grant type parameter should be a sum type built from the grant types, in "Servant.OAuth.Grants" with parsers combined using '<|>'.
 -- 'Lenient' body handling is required to provide the correct error message format, which is handled by the endpoint implementations in this module.
 type OAuthTokenEndpoint grant =
-  ReqBody' '[Required, Lenient] '[FormUrlEncoded, JSON] grant :> Post '[JSON] OAuthTokenSuccess
+  OAuthTokenEndpoint' '[FormUrlEncoded, JSON] grant
+
+type OAuthTokenEndpoint' (contentTypes :: [Type]) grant =
+  ReqBody' '[Required, Lenient] contentTypes grant :> Post '[JSON] OAuthTokenSuccess
