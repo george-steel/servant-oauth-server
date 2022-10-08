@@ -42,20 +42,58 @@ import Servant.Server.Internal
 instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthRequired claim :> api) context where
   type ServerT (AuthRequired claim :> api) m = claim -> ServerT api m
 
+  route ::
+    ( HasServer api context,
+      HasContextEntry context JWTSettings,
+      FromJWT claim
+    ) =>
+    Proxy (AuthRequired claim :> api) ->
+    Context context ->
+    Delayed env (Server (AuthRequired claim :> api)) ->
+    Router env
   route _ context subserver = route (Proxy @api) context (addAuthCheck subserver authCheck)
     where
       authCheck = withRequest $ requireLogin <=< checkJwtLogin (getContextEntry context)
       requireLogin = maybe (delayedFailFatal . authErrorServant $ AuthRequired "Login Required") return
 
+  hoistServerWithContext ::
+    ( HasServer api context,
+      HasContextEntry context JWTSettings,
+      FromJWT claim
+    ) =>
+    Proxy (AuthRequired claim :> api) ->
+    Proxy context ->
+    (forall x. m x -> n x) ->
+    ServerT (AuthRequired claim :> api) m ->
+    ServerT (AuthRequired claim :> api) n
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
 instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthOptional claim :> api) context where
   type ServerT (AuthOptional claim :> api) m = Maybe claim -> ServerT api m
 
+  route ::
+    ( HasServer api context,
+      HasContextEntry context JWTSettings,
+      FromJWT claim
+    ) =>
+    Proxy (AuthOptional claim :> api) ->
+    Context context ->
+    Delayed env (Server (AuthOptional claim :> api)) ->
+    Router env
   route Proxy context subserver = route (Proxy :: Proxy api) context (addAuthCheck subserver authCheck)
     where
       authCheck = withRequest $ checkJwtLogin (getContextEntry context)
 
+  hoistServerWithContext ::
+    ( HasServer api context,
+      HasContextEntry context JWTSettings,
+      FromJWT claim
+    ) =>
+    Proxy (AuthOptional claim :> api) ->
+    Proxy context ->
+    (forall x. m x -> n x) ->
+    ServerT (AuthOptional claim :> api) m ->
+    ServerT (AuthOptional claim :> api) n
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
 -- | Authorization check returning the correct error messages.
