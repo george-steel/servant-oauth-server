@@ -39,7 +39,6 @@ import Crypto.JWT
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.Char8 (ByteString)
-import Data.String.Conversions (cs)
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Text.Strict.Lens (utf8)
@@ -146,8 +145,9 @@ mkTestJWTSignSettings =
 -- So (2) seems a non-solution; (1) may be worth pursuing at some point in the future.  For
 -- now, we'll stick with the classy prisms mess.
 data MakeAccessTokenError
-  = MakeAccessTokenNoAlg ByteString
-  | MakeAccessTokenEncNotSig ByteString
+  = MakeAccessTokenNoAlg (ByteString, String)
+  | MakeAccessTokenEncNotSig (ByteString, String)
+  | MakeAccessTokenInconsistentAlgs (ByteString, String)
   | MakeAccessTokenJoseError Error
   deriving (Eq, Show)
 
@@ -175,14 +175,7 @@ makeAccessToken ::
   m CompactJWT
 makeAccessToken settings x = do
   now <- liftIO getCurrentTime
-  hdr <- do
-    let thrw :: AReview e ByteString -> m x
-        thrw cns = throwing cns (A.encode (jwtSignKey settings) <> "\n" <> cs (show settings))
-    jwtSignKey settings ^. jwkAlg & \case
-      Just (JWSAlg kalg) ->
-        pure $ newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
-      Just (JWEAlg _) -> thrw _MakeAccessTokenEncNotSig
-      Nothing -> thrw _MakeAccessTokenNoAlg
+  hdr <- headerFromJWK (jwtSignKey settings)
   let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
@@ -190,3 +183,24 @@ makeAccessToken settings x = do
           & consClaims x
   tok <- signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok
+
+headerFromJWK :: forall m e. (MonadError e m, AsMakeAccessTokenError e) => JWK -> m (JWSHeader ())
+headerFromJWK jwkey = do
+  let thrw :: AReview e (ByteString, String) -> m x
+      thrw cns = throwing cns (A.encode jwkey, show jwkey)
+  readJWSAlg <-
+    jwkey ^. jwkAlg & \case
+      Nothing -> pure Nothing
+      Just (JWSAlg kalg) -> pure $ Just kalg
+      Just (JWEAlg _) -> thrw _MakeAccessTokenEncNotSig
+  let readKeyMaterial = algFromKeyMaterial $ jwkey ^. jwkMaterial
+  kalg <- case (readJWSAlg, readKeyMaterial) of
+    (Just a, Just a') -> if a /= a' then thrw _MakeAccessTokenInconsistentAlgs else pure a
+    (Just a, Nothing) -> pure a
+    (Nothing, Just a) -> pure a
+    (Nothing, Nothing) -> thrw _MakeAccessTokenNoAlg
+
+  pure $ newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwkey ^. jwkKid)
+
+algFromKeyMaterial :: KeyMaterial -> Maybe Alg
+algFromKeyMaterial _ = Nothing
