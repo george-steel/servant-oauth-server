@@ -35,12 +35,10 @@ where
 
 import Control.Exception
 import Control.Monad.Except
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text)
-import Data.Time
 import Data.Time.Clock.POSIX
 import Network.HTTP.Client
 import Servant.OAuth.Grants
@@ -50,7 +48,6 @@ import Servant.OAuth.Grants
     param,
     qstring,
   )
-import Servant.OAuth.ResourceServer
 import Servant.OAuth.TokenServer
 import Servant.OAuth.TokenServer.Types
 import Servant.Server.Internal.ServerError
@@ -115,7 +112,7 @@ data FacebookSettings = FacebookSettings
   }
 
 -- | Checks a facebook access token and return its user ID as well as the raw response (which includes user info).
--- Throws invalid grant if token is invalid, expired, ro for the wrong app id.
+-- Throws invalid grant if token is invalid, expired, or for the wrong app id.
 checkFacebookAssertion :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m (FacebookUserId, FacebookTokenCheck)
 checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
   atok <- liftIO $ fbTokenProvider settings
@@ -145,7 +142,7 @@ checkFacebookAssertion settings (OAuthGrantOpaqueAssertion tok) = do
       | otherwise -> throwServerErrorJSON err401 $ OAuthFailure InvalidGrant (Just "Invalid Facebook token") Nothing
   return (uid, result)
 
--- | Retrieves user info given a valid facebook token. Use this to get infor cor creating a new user entry.
+-- | Retrieves user info given a valid facebook token. Use this to get info for creating a new user entry.
 getFacebookUserInfo :: (MonadIO m, MonadError ServerError m) => FacebookSettings -> OAuthGrantFacebookAssertion -> m FacebookUserInfo
 getFacebookUserInfo settings (OAuthGrantOpaqueAssertion tok) = do
   let req =

@@ -28,9 +28,31 @@ import Control.Monad.Except
     runExceptT,
   )
 import Crypto.JWT
+  ( ClaimsSet,
+    Error,
+    HasKid (kid),
+    HeaderParam (HeaderParam),
+    JWK,
+    JWKAlg (JWSAlg),
+    JWSHeader,
+    JWTError (JWTClaimsSetDecodeError),
+    JWTValidationSettings,
+    NumericDate (NumericDate),
+    VerificationKeyStore,
+    claimExp,
+    claimIat,
+    claimSub,
+    decodeCompact,
+    encodeCompact,
+    jwkAlg,
+    jwkKid,
+    newJWSHeader,
+    signClaims,
+    string,
+    verifyClaims,
+  )
 import qualified Data.ByteString.Lazy as BL
-import Data.Maybe
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Time
 import Servant.OAuth.ResourceServer.Types
@@ -102,12 +124,12 @@ data JWTSignSettings = JWTSignSettings
 makeAccessToken :: (ToJWT a) => JWTSignSettings -> a -> IO CompactJWT
 makeAccessToken settings x = do
   now <- getCurrentTime
-  let claimsSet =
+  let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
           & claimIat ?~ NumericDate now
           & consClaims x
       Just (JWSAlg kalg) = jwtSignKey settings ^. jwkAlg -- requires valid key
       hdr = newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
-  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr claimsSet
+  Right tok <- runExceptT @Error $ signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok

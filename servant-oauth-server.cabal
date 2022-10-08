@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-type-defaults -Wno-unused-imports -fno-warn-orphans
+  ghc-options:         -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   exposed-modules:     Servant.OAuth.ResourceServer
                      , Servant.OAuth.ResourceServer.Types
                      , Servant.OAuth.JWT
@@ -24,22 +24,126 @@ library
                      , Servant.OAuth.TokenServer.Types
                      , Servant.OAuth.Grants
                      , Servant.OAuth.Grants.Facebook
+                     , Servant.OAuth.Grants.OpenId
   build-depends:       base
-                     , unordered-containers
-                     , servant
-                     , servant-server
-                     , wai
-                     , text
-                     , jose
                      , aeson >= 2
-                     , lens
-                     , mtl
                      , bytestring
                      , http-api-data
-                     , time
                      , http-client
                      , http-types
+                     , jose
+                     , lens
+                     , mtl
+                     , servant
+                     , servant-server
+                     , text
+                     , time
+                     , unordered-containers
+                     , wai
   default-language:    Haskell2010
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+test-suite spec
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  other-modules:
+    ThingsSpec
+  build-depends:       base
+                     , aeson >= 2
+                     , bytestring
+                     , hspec
+                     , hspec-wai
+                     , http-api-data
+                     , http-client
+                     , http-types
+                     , jose
+                     , lens
+                     , mtl
+                     , servant
+                     , servant-oauth-server
+                     , servant-server
+                     , text
+                     , time
+                     , unordered-containers
+                     , wai
+  build-tool-depends:  hspec-discover:hspec-discover
+  default-language:    Haskell2010
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
 
 source-repository head
   type:     git

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,11 +6,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
 -- |
 -- Module: Servant.OAuth.Grants
@@ -23,7 +20,6 @@
 -- (@sumEncoding = UntaggedValue@ may also be uused if using Aeson TH or Generic instances).
 module Servant.OAuth.Grants where
 
-import Control.Applicative
 import Control.Arrow
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -32,10 +28,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as H
 import Data.Maybe
 import Data.Proxy
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
+import Data.Text (Text, pack)
 import qualified Data.Text.Encoding as T
-import Data.Time
 import GHC.TypeLits
 import Servant.OAuth.ResourceServer.Types
 import Servant.OAuth.TokenServer.Types
@@ -100,35 +94,35 @@ data WithScope s a = WithScope (Maybe s) a
 
 instance FromJSON OAuthGrantPassword where
   parseJSON = withObject "password" $ \o ->
-    o .: "grant_type" >>= \gt ->
+    o .: "grant_type" >>= \(gt :: Text) ->
       if gt == "password"
         then OAuthGrantPassword <$> o .: "username" <*> o .: "password"
         else fail "wrong grant type"
 
 instance (KnownSymbol gt) => FromJSON (OAuthGrantOpaqueAssertion gt) where
   parseJSON = withObject ("assert_opaque:" <> symbolVal (Proxy @gt)) $ \o ->
-    o .: "grant_type" >>= \pgt ->
-      if pgt == (symbolVal (Proxy @gt))
+    o .: "grant_type" >>= \(pgt :: String) ->
+      if pgt == symbolVal (Proxy @gt)
         then OAuthGrantOpaqueAssertion <$> o .: "assertion"
         else fail "wrong grant type"
 
 instance FromJSON OAuthGrantJWTAssertion where
   parseJSON = withObject "assert_jwt" $ \o ->
-    o .: "grant_type" >>= \gt ->
+    o .: "grant_type" >>= \(gt :: Text) ->
       if gt == "urn:ietf:params:oauth:grant-type:jwt-bearer"
         then OAuthGrantJWTAssertion <$> o .: "assertion"
         else fail "wrong grant type"
 
 instance FromJSON OAuthGrantCodePKCE where
   parseJSON = withObject "code_pkce" $ \o ->
-    o .: "grant_type" >>= \gt ->
+    o .: "grant_type" >>= \(gt :: Text) ->
       if gt == "authorization_code"
         then OAuthGrantCodePKCE <$> o .: "code" <*> o .: "code_verifier"
         else fail "wrong grant type"
 
 instance FromJSON OAuthGrantRefresh where
   parseJSON = withObject "assert_jwt" $ \o ->
-    o .: "grant_type" >>= \gt ->
+    o .: "grant_type" >>= \(gt :: Text) ->
       if gt == "refresh_token"
         then OAuthGrantRefresh <$> o .: "refresh_token"
         else fail "wrong grant type"
@@ -138,19 +132,19 @@ instance (FromJSON s, FromJSON a) => FromJSON (WithScope s a) where
   parseJSON v = WithScope Nothing <$> parseJSON v
 
 instance ToJSON OAuthGrantPassword where
-  toJSON (OAuthGrantPassword un pw) = object ["grant_type" .= "password", "username" .= un, "password" .= pw]
+  toJSON (OAuthGrantPassword un pw) = object ["grant_type" .= ("password" :: Text), "username" .= un, "password" .= pw]
 
 instance (KnownSymbol gt) => ToJSON (OAuthGrantOpaqueAssertion gt) where
   toJSON (OAuthGrantOpaqueAssertion x) = object ["grant_type" .= symbolVal (Proxy @gt), "assertion" .= x]
 
 instance ToJSON OAuthGrantJWTAssertion where
-  toJSON (OAuthGrantJWTAssertion x) = object ["grant_type" .= "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion" .= x]
+  toJSON (OAuthGrantJWTAssertion x) = object ["grant_type" .= ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: Text), "assertion" .= x]
 
 instance ToJSON OAuthGrantCodePKCE where
-  toJSON (OAuthGrantCodePKCE code ver) = object ["grant_type" .= "authorization_code", "code" .= code, "code_verifier" .= ver]
+  toJSON (OAuthGrantCodePKCE code ver) = object ["grant_type" .= ("authorization_code" :: Text), "code" .= code, "code_verifier" .= ver]
 
 instance ToJSON OAuthGrantRefresh where
-  toJSON (OAuthGrantRefresh x) = object ["grant_type" .= "refresh_token", "refresh_token" .= x]
+  toJSON (OAuthGrantRefresh x) = object ["grant_type" .= ("refresh_token" :: Text), "refresh_token" .= x]
 
 instance (ToJSON s, ToJSON a) => ToJSON (WithScope s a) where
   toJSON (WithScope Nothing x) = toJSON x
@@ -195,19 +189,19 @@ instance (FromHttpApiData s, FromForm a) => FromForm (WithScope s a) where
   fromForm f = WithScope <$> parseMaybe "scope" f <*> fromForm f
 
 instance ToForm OAuthGrantPassword where
-  toForm (OAuthGrantPassword un pw) = param "grant_type" "password" <> param "username" un <> param "password" pw
+  toForm (OAuthGrantPassword un pw) = param "grant_type" ("password" :: Text) <> param "username" un <> param "password" pw
 
 instance (KnownSymbol gt) => ToForm (OAuthGrantOpaqueAssertion gt) where
   toForm (OAuthGrantOpaqueAssertion x) = param "grant_type" (symbolVal (Proxy @gt)) <> param "assertion" x
 
 instance ToForm OAuthGrantJWTAssertion where
-  toForm (OAuthGrantJWTAssertion x) = param "grant_type" "urn:ietf:params:oauth:grant-type:jwt-bearer" <> param "assertion" x
+  toForm (OAuthGrantJWTAssertion x) = param "grant_type" ("urn:ietf:params:oauth:grant-type:jwt-bearer" :: Text) <> param "assertion" x
 
 instance ToForm OAuthGrantCodePKCE where
-  toForm (OAuthGrantCodePKCE code ver) = param "grant_type" "authorization_code" <> param "code" code <> param "code_verifier" ver
+  toForm (OAuthGrantCodePKCE code ver) = param "grant_type" ("authorization_code" :: Text) <> param "code" code <> param "code_verifier" ver
 
 instance ToForm OAuthGrantRefresh where
-  toForm (OAuthGrantRefresh x) = param "grant_type" "refresh_token" <> param "refresh_token" x
+  toForm (OAuthGrantRefresh x) = param "grant_type" ("refresh_token" :: Text) <> param "refresh_token" x
 
 instance (ToHttpApiData s, ToForm a) => ToForm (WithScope s a) where
   toForm (WithScope s x) = maybe mempty (param "scope") s <> toForm x

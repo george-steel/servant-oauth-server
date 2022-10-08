@@ -1,4 +1,3 @@
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -28,14 +27,10 @@ module Servant.OAuth.ResourceServer
   )
 where
 
-import Control.Lens
 import Control.Monad.Except
-import Control.Monad.IO.Class
-import Crypto.JWT
 import qualified Data.ByteString.Lazy as BL
 import Data.Proxy
-import Data.Text (Text, pack, unpack)
-import qualified Data.Text as T
+import Data.Text (Text, pack)
 import qualified Data.Text.Encoding as T
 import Network.Wai (Request, requestHeaders)
 import Servant.API
@@ -44,8 +39,8 @@ import Servant.OAuth.ResourceServer.Types
 import Servant.Server
 import Servant.Server.Internal
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a) => HasServer (AuthRequired a :> api) context where
-  type ServerT (AuthRequired a :> api) m = a -> ServerT api m
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthRequired claim :> api) context where
+  type ServerT (AuthRequired claim :> api) m = claim -> ServerT api m
 
   route _ context subserver = route (Proxy @api) context (addAuthCheck subserver authCheck)
     where
@@ -54,8 +49,8 @@ instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a)
 
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
-instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT a) => HasServer (AuthOptional a :> api) context where
-  type ServerT (AuthOptional a :> api) m = Maybe a -> ServerT api m
+instance (HasServer api context, HasContextEntry context JWTSettings, FromJWT claim) => HasServer (AuthOptional claim :> api) context where
+  type ServerT (AuthOptional claim :> api) m = Maybe claim -> ServerT api m
 
   route Proxy context subserver = route (Proxy :: Proxy api) context (addAuthCheck subserver authCheck)
     where
@@ -89,6 +84,6 @@ throwForbidden = throwError . authErrorServant . InsufficientScope
 
 -- | Throw a unauthorized or forbidden error depending on the whether the claims are 'Nothing' or 'Just'.
 -- For use in endpoints using 'AuthOptional'.
-throwForbiddenOrLogin :: (FromJWT auth, MonadError ServerError m) => Maybe auth -> Text -> m a
+throwForbiddenOrLogin :: (MonadError ServerError m) => Maybe auth -> Text -> m a
 throwForbiddenOrLogin (Just _) = throwForbidden
 throwForbiddenOrLogin Nothing = throwError . authErrorServant . AuthRequired
