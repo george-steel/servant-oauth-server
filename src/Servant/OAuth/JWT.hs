@@ -175,7 +175,7 @@ makeAccessToken ::
   m CompactJWT
 makeAccessToken settings x = do
   now <- liftIO getCurrentTime
-  hdr <- headerFromJWK (jwtSignKey settings)
+  hdr <- makeJWSHeader (jwtSignKey settings)
   let cset =
         jwtInitialClaims settings
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
@@ -203,4 +203,9 @@ headerFromJWK jwkey = do
   pure $ newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwkey ^. jwkKid)
 
 algFromKeyMaterial :: KeyMaterial -> Maybe Alg
-algFromKeyMaterial _ = Nothing
+algFromKeyMaterial _ =
+  -- 'but got:  AlgorithmMismatch "HS256 cannot be used with OKP key"'
+  -- maybe it's not an error to have no alg, and we can still construct a valid header from
+  -- that?  understand what header we want, and work the types back from there.
+  -- Just HS256
+  Nothing
