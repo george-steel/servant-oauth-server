@@ -163,11 +163,12 @@ makeAccessToken ::
   m CompactJWT
 makeAccessToken settings x = do
   now <- liftIO getCurrentTime
-  kalg <- do
+  hdr <- do
     let thrw :: AReview e ByteString -> m x
-        thrw cns = throwing cns (A.encode (jwtSignKey settings))
+        thrw cns = throwing cns (A.encode (jwtSignKey settings) <> "\n" <> cs (show settings))
     jwtSignKey settings ^. jwkAlg & \case
-      Just (JWSAlg kalg) -> pure kalg
+      Just (JWSAlg kalg) ->
+        pure $ newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
       Just (JWEAlg _) -> thrw _MakeAccessTokenEncNotSig
       Nothing -> thrw _MakeAccessTokenNoAlg
   let cset =
@@ -175,6 +176,5 @@ makeAccessToken settings x = do
           & claimExp ?~ NumericDate (addUTCTime (jwtDuration settings) now)
           & claimIat ?~ NumericDate now
           & consClaims x
-      hdr = newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwtSignKey settings ^. jwkKid)
   tok <- signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok
