@@ -61,7 +61,7 @@ instance AsError ServerError where
         ServerError
           { errHTTPCode = 400,
             errReasonPhrase = "could-not-sign-oauth-token",
-            errBody = cs $ show err,
+            errBody = cs $ show err, -- TODO: json encode instead of show?  but missing instance.
             errHeaders = []
           }
 
