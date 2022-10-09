@@ -16,6 +16,7 @@ import Servant.API
 import Servant.OAuth.Grants (OAuthGrantOpaqueAssertion (..), OpaqueToken (..))
 import Servant.OAuth.Grants.Facebook
 import Servant.OAuth.JWT
+import Servant.OAuth.ResourceServer
 import Servant.OAuth.TokenServer
 import Servant.OAuth.TokenServer.Types
 import Servant.Server
@@ -32,34 +33,43 @@ Just testJWTSignSettings =
 
 ------------------------------
 
-type TokenServerAPI = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
-
-tokenServerApp :: IO Application
-tokenServerApp = do
-  pure $ serve (Proxy @TokenServerAPI) (runTokenServerM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler)
-
-tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
-tokenHandler = pure . ClaimSub . cs . show
-
-newtype TokenServerM a = TokenServerM {runTokenServerM :: Handler a}
+newtype AppM a = AppM {runAppM :: Handler a}
   deriving newtype (Functor, Applicative, Monad, MonadIO)
 
-instance MonadRandom TokenServerM where
+instance MonadRandom AppM where
   getRandomBytes =
     -- TODO: why isn't this catching?  are we just adding a determinstic digest instead of the ec25519 signature?
     undefined
 
-instance MonadError ServerError TokenServerM where
-  throwError = TokenServerM . Handler . throwE
-  catchError (TokenServerM action) handler = TokenServerM (action `catchError` (runTokenServerM . handler))
+instance MonadError ServerError AppM where
+  throwError = AppM . Handler . throwE
+  catchError (AppM action) handler = AppM (action `catchError` (runAppM . handler))
 
-app :: IO Application
-app = tokenServerApp
+------------------------------
+
+type TokenAPI = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
+
+tokenApp :: IO Application
+tokenApp = do
+  pure $ serve (Proxy @TokenAPI) (runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler)
+
+tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
+tokenHandler = pure . ClaimSub . cs . show
+
+------------------------------
+
+type ResourceAPI = "login" :> AuthRequired CompactJWT :> Get '[JSON] Bool
+
+resourceApp :: IO Application
+resourceApp = do
+  undefined -- pure $ serve (Proxy @ResourceAPI) (runAppM . undefined)
+
+------------------------------
 
 spec :: Spec
-spec = with app $ do
-  describe "fetch token" $ do
-    it "success" $ do
+spec = do
+  describe "fetch token" . with tokenApp $ do
+    it "success case" $ do
       let reqbody :: OAuthGrantFacebookAssertion
           reqbody = OAuthGrantOpaqueAssertion (OpaqueToken "...")
 
@@ -70,5 +80,12 @@ spec = with app $ do
       request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
         `shouldRespondWith` 200
 
-    it "failure" $ do
+    it "failure case" $ do
+      pending
+
+  describe "present token to resource server" . with resourceApp $ do
+    it "success case" $ do
+      pending
+
+    it "failure case" $ do
       pending
