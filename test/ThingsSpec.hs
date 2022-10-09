@@ -49,7 +49,7 @@ instance MonadRandom TokenServerM where
 
 instance MonadError ServerError TokenServerM where
   throwError = TokenServerM . Handler . throwE
-  catchError = undefined
+  catchError (TokenServerM action) handler = TokenServerM (action `catchError` (runTokenServerM . handler))
 
 app :: IO Application
 app = tokenServerApp
