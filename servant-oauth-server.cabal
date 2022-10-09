@@ -100,6 +100,7 @@ test-suite spec
                      , http-types
                      , jose
                      , lens
+                     , lens-aeson
                      , mtl
                      , servant
                      , servant-oauth-server
@@ -110,6 +111,7 @@ test-suite spec
                      , transformers
                      , unordered-containers
                      , wai
+                     , wai-extra
   build-tool-depends:  hspec-discover:hspec-discover
   default-language:    Haskell2010
   default-extensions:

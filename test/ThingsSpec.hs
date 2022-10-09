@@ -2,6 +2,7 @@
 
 module ThingsSpec where
 
+import Control.Lens
 import Control.Monad (liftM)
 import Control.Monad.Error.Class (MonadError, catchError, throwError)
 import Control.Monad.IO.Class (MonadIO)
@@ -9,11 +10,14 @@ import Control.Monad.Trans.Except (ExceptT, throwE)
 import Crypto.JWT (StringOrURI, defaultJWTValidationSettings)
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson
+import qualified Data.Aeson.Lens as A
+import Data.Maybe (fromJust)
 import Data.Proxy
 import Data.String
 import Data.String.Conversions (cs)
 import Data.Text
 import Network.Wai
+import Network.Wai.Test (SRequest (..), simpleBody)
 import Servant.API
 import Servant.OAuth.Grants (OAuthGrantOpaqueAssertion (..), OpaqueToken (..))
 import Servant.OAuth.Grants.Facebook
@@ -96,7 +100,12 @@ spec = with app $ do
 
   describe "present token to resource server" $ do
     it "success case" $ do
-      pending
+      resp <- do
+        let reqbody = OAuthGrantOpaqueAssertion (OpaqueToken tokenPayload) :: OAuthGrantFacebookAssertion
+        request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
+      let Just token = decode @Value (simpleBody resp) >>= (^? A.key ("access_token" :: Key) . A._String)
+      request "GET" "/login" [("Content-type", "application/json"), ("Authorization", "Bearer " <> cs token)] mempty
+        `shouldRespondWith` 200 {matchBody = bodyEquals "\"Just (ClaimSub \\\"OAuthGrantOpaqueAssertion (OpaqueToken \\\\\\\"...\\\\\\\")\\\")\""}
 
     it "failure case" $ do
       pending
