@@ -45,7 +45,9 @@ newtype TokenServerM a = TokenServerM {runTokenServerM :: Handler a}
   deriving newtype (Functor, Applicative, Monad, MonadIO)
 
 instance MonadRandom TokenServerM where
-  getRandomBytes = undefined
+  getRandomBytes =
+    -- TODO: why isn't this catching?  are we just adding a determinstic digest instead of the ec25519 signature?
+    undefined
 
 instance MonadError ServerError TokenServerM where
   throwError = TokenServerM . Handler . throwE
