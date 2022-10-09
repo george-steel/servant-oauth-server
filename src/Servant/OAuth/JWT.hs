@@ -33,11 +33,13 @@ import Control.Monad.Except
 import Control.Monad.IO.Class
 import Crypto.JOSE.JWK
 import Crypto.JWT
+import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Text.Strict.Lens (utf8)
 import Data.Time
+import GHC.Generics
 import Servant.OAuth.ResourceServer.Types
 import Web.HttpApiData
 
@@ -101,7 +103,11 @@ data JWTSignSettings = JWTSignSettings
     jwtInitialClaims :: ClaimsSet,
     jwtDuration :: NominalDiffTime
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+instance FromJSON JWTSignSettings
+
+instance ToJSON JWTSignSettings
 
 -- | Generate a simple set of crypto credentials for a token server.  Get familiar with `jose`
 -- if you want a `JWTSignSettings` that is ready for production.  Start with

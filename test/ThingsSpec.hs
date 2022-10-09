@@ -25,12 +25,18 @@ import Test.Hspec.Wai.Matcher
 
 ------------------------------
 
+-- | generated with 'mkTestJWTSignSettings'
+testJWTSignSettings :: JWTSignSettings
+Just testJWTSignSettings =
+  decode "{\"jwtDuration\":5,\"jwtInitialClaims\":{},\"jwtSignKey\":{\"crv\":\"Ed25519\",\"d\":\"ZfSXWx4QCq4mQW_lPOXGvcqfEy6757Q2s9gWK2YbV88\",\"key_ops\":[\"sign\",\"verify\"],\"kid\":\"RHKw2tjb43P5mMab0m_xpYbNpAaiXROLdaOR8so4joo\",\"kty\":\"OKP\",\"use\":\"sig\",\"x\":\"Rm-3PqAInCgSjdlqWJz1RKADlIajHLa5So-uY4R95EU\"}}"
+
+------------------------------
+
 type TokenServerAPI = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
 
 tokenServerApp :: IO Application
 tokenServerApp = do
-  signSettings <- mkTestJWTSignSettings
-  pure $ serve (Proxy @TokenServerAPI) (runTokenServerM . tokenEndpointNoRefresh signSettings tokenHandler)
+  pure $ serve (Proxy @TokenServerAPI) (runTokenServerM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler)
 
 tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
 tokenHandler = pure . ClaimSub . cs . show
@@ -50,20 +56,17 @@ app = tokenServerApp
 
 spec :: Spec
 spec = with app $ do
-  describe "facebook" $ do
-    describe "fetch token" $ do
-      it "success" $ do
-        let reqbody :: OAuthGrantFacebookAssertion
-            reqbody = OAuthGrantOpaqueAssertion (OpaqueToken "...")
+  describe "fetch token" $ do
+    it "success" $ do
+      let reqbody :: OAuthGrantFacebookAssertion
+          reqbody = OAuthGrantOpaqueAssertion (OpaqueToken "...")
 
-            respbody :: OAuthTokenSuccess
-            respbody = OAuthTokenSuccess (CompactJWT "jwt") 30 Nothing
+          _respbody :: OAuthTokenSuccess
+          _respbody = OAuthTokenSuccess (CompactJWT "...") 5 Nothing
 
-        request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
-          `shouldRespondWith` 200 {matchBody = bodyEquals $ encode respbody}
+      -- TODO: `200 {matchBody = bodyEquals $ encode respbody}` (but that requires reproducible randomness in the token server.)
+      request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
+        `shouldRespondWith` 200
 
-      it "failure" $ do
-        pending
-
-  describe "oidc" $ do
-    pure () -- all of the above, again.
+    it "failure" $ do
+      pending
