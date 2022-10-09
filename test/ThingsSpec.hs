@@ -6,9 +6,11 @@ import Control.Monad (liftM)
 import Control.Monad.Error.Class (MonadError, catchError, throwError)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Except (ExceptT, throwE)
+import Crypto.JWT (StringOrURI, defaultJWTValidationSettings)
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson
 import Data.Proxy
+import Data.String
 import Data.String.Conversions (cs)
 import Data.Text
 import Network.Wai
@@ -30,6 +32,15 @@ import Test.Hspec.Wai.Matcher
 testJWTSignSettings :: JWTSignSettings
 Just testJWTSignSettings =
   decode "{\"jwtDuration\":5,\"jwtInitialClaims\":{},\"jwtSignKey\":{\"crv\":\"Ed25519\",\"d\":\"ZfSXWx4QCq4mQW_lPOXGvcqfEy6757Q2s9gWK2YbV88\",\"key_ops\":[\"sign\",\"verify\"],\"kid\":\"RHKw2tjb43P5mMab0m_xpYbNpAaiXROLdaOR8so4joo\",\"kty\":\"OKP\",\"use\":\"sig\",\"x\":\"Rm-3PqAInCgSjdlqWJz1RKADlIajHLa5So-uY4R95EU\"}}"
+
+testJWTSettings :: JWTSettings
+testJWTSettings =
+  JWTSettings
+    (SomeJWKResolver (jwtSignKey testJWTSignSettings))
+    (defaultJWTValidationSettings (== tokenPayload))
+
+tokenPayload :: IsString s => s
+tokenPayload = "..."
 
 ------------------------------
 
@@ -58,11 +69,20 @@ tokenHandler = pure . ClaimSub . cs . show
 
 ------------------------------
 
-type ResourceAPI = "login" :> AuthRequired CompactJWT :> Get '[JSON] Bool
+type ResourceAPI =
+  "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] String
+    :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] String
 
 resourceApp :: IO Application
 resourceApp = do
-  undefined -- pure $ serve (Proxy @ResourceAPI) (runAppM . undefined)
+  pure $
+    serveWithContext (Proxy @ResourceAPI) (testJWTSettings :. EmptyContext) $
+      ( runAppM . resourceHandler . Just
+          :<|> runAppM . resourceHandler
+      )
+
+resourceHandler :: Maybe (ClaimSub Text) -> AppM String
+resourceHandler = pure . show
 
 ------------------------------
 
@@ -71,10 +91,10 @@ spec = do
   describe "fetch token" . with tokenApp $ do
     it "success case" $ do
       let reqbody :: OAuthGrantFacebookAssertion
-          reqbody = OAuthGrantOpaqueAssertion (OpaqueToken "...")
+          reqbody = OAuthGrantOpaqueAssertion (OpaqueToken tokenPayload)
 
           _respbody :: OAuthTokenSuccess
-          _respbody = OAuthTokenSuccess (CompactJWT "...") 5 Nothing
+          _respbody = OAuthTokenSuccess (CompactJWT tokenPayload) 5 Nothing
 
       -- TODO: `200 {matchBody = bodyEquals $ encode respbody}` (but that requires reproducible randomness in the token server.)
       request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)

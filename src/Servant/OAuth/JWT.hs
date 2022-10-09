@@ -14,7 +14,7 @@ module Servant.OAuth.JWT
     -- * Verification
     CompactJWT (..),
     SomeJWKResolver (..),
-    JWTSettings,
+    JWTSettings (..),
     checkAuthToken,
 
     -- * Signing
