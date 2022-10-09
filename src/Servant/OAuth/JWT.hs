@@ -68,7 +68,11 @@ instance (ToJWT a) => ToJWT (Maybe a) where
   consClaims Nothing = id
 
 -- | Newtype for `sub` claims. Use with DerivingVia for FromJWT and ToJWT instances.
-newtype ClaimSub a = ClaimSub a deriving (Eq, Ord, Show)
+newtype ClaimSub a = ClaimSub a deriving (Eq, Ord, Show, Generic)
+
+instance FromJSON a => FromJSON (ClaimSub a)
+
+instance ToJSON a => ToJSON (ClaimSub a)
 
 instance (FromHttpApiData a) => FromJWT (ClaimSub a) where
   fromJWT claims =

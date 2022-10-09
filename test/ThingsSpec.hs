@@ -64,8 +64,8 @@ instance MonadError ServerError AppM where
 
 type API =
   "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
-    :<|> "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] String
-    :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] String
+    :<|> "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] Text
+    :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] Text
 
 app :: IO Application
 app =
@@ -78,8 +78,8 @@ app =
 tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
 tokenHandler = pure . ClaimSub . cs . show
 
-resourceHandler :: Maybe (ClaimSub Text) -> AppM String
-resourceHandler = pure . show
+resourceHandler :: Maybe (ClaimSub Text) -> AppM Text
+resourceHandler = pure . cs . encode
 
 ------------------------------
 
@@ -105,7 +105,7 @@ spec = with app $ do
         request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
       let Just token = decode @Value (simpleBody resp) >>= (^? A.key ("access_token" :: Key) . A._String)
       request "GET" "/login" [("Content-type", "application/json"), ("Authorization", "Bearer " <> cs token)] mempty
-        `shouldRespondWith` 200 {matchBody = bodyEquals "\"Just (ClaimSub \\\"OAuthGrantOpaqueAssertion (OpaqueToken \\\\\\\"...\\\\\\\")\\\")\""}
+        `shouldRespondWith` 200 {matchBody = bodyEquals . cs . show $ "\"OAuthGrantOpaqueAssertion (OpaqueToken \\\"...\\\")\""}
 
     it "failure case" $ do
       pending
