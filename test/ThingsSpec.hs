@@ -58,28 +58,21 @@ instance MonadError ServerError AppM where
 
 ------------------------------
 
-type TokenAPI = "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
+type API =
+  "oauth" :> "access_token" :> OAuthTokenEndpoint' '[JSON] OAuthGrantFacebookAssertion
+    :<|> "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] String
+    :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] String
 
-tokenApp :: IO Application
-tokenApp = do
-  pure $ serve (Proxy @TokenAPI) (runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler)
+app :: IO Application
+app =
+  pure . serveWithContext (Proxy @API) (testJWTSettings :. EmptyContext) $
+    ( runAppM . tokenEndpointNoRefresh testJWTSignSettings tokenHandler
+        :<|> runAppM . resourceHandler . Just
+        :<|> runAppM . resourceHandler
+    )
 
 tokenHandler :: Monad m => OAuthGrantFacebookAssertion -> m (ClaimSub Text)
 tokenHandler = pure . ClaimSub . cs . show
-
-------------------------------
-
-type ResourceAPI =
-  "login" :> AuthRequired (ClaimSub Text) :> Get '[JSON] String
-    :<|> "login-optional" :> AuthOptional (ClaimSub Text) :> Get '[JSON] String
-
-resourceApp :: IO Application
-resourceApp = do
-  pure $
-    serveWithContext (Proxy @ResourceAPI) (testJWTSettings :. EmptyContext) $
-      ( runAppM . resourceHandler . Just
-          :<|> runAppM . resourceHandler
-      )
 
 resourceHandler :: Maybe (ClaimSub Text) -> AppM String
 resourceHandler = pure . show
@@ -87,23 +80,21 @@ resourceHandler = pure . show
 ------------------------------
 
 spec :: Spec
-spec = do
-  describe "fetch token" . with tokenApp $ do
+spec = with app $ do
+  describe "fetch token" $ do
     it "success case" $ do
       let reqbody :: OAuthGrantFacebookAssertion
           reqbody = OAuthGrantOpaqueAssertion (OpaqueToken tokenPayload)
 
-          _respbody :: OAuthTokenSuccess
-          _respbody = OAuthTokenSuccess (CompactJWT tokenPayload) 5 Nothing
-
-      -- TODO: `200 {matchBody = bodyEquals $ encode respbody}` (but that requires reproducible randomness in the token server.)
+      -- TODO: `200 {matchBody = bodyEquals $ encode (OAuthTokenSuccess (CompactJWT tokenPayload) 5 Nothing)}`
+      -- (but that requires reproducible randomness in the token server.)
       request "POST" "/oauth/access_token" [("Content-type", "application/json")] (encode reqbody)
         `shouldRespondWith` 200
 
     it "failure case" $ do
       pending
 
-  describe "present token to resource server" . with resourceApp $ do
+  describe "present token to resource server" $ do
     it "success case" $ do
       pending
 
