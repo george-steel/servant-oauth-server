@@ -21,13 +21,10 @@ module Servant.OAuth.JWT
     JWTSignSettings (..),
     mkTestJWTSignSettings,
     makeAccessToken,
-    MakeAccessTokenError (..),
-    AsMakeAccessTokenError (..),
   )
 where
 
 import Control.Lens
-import Control.Monad.Error.Lens (throwing)
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -36,9 +33,7 @@ import Control.Monad.Except
 import Control.Monad.IO.Class
 import Crypto.JOSE.JWK
 import Crypto.JWT
-import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
-import Data.ByteString.Lazy.Char8 (ByteString)
 import Data.Text (Text, unpack)
 import qualified Data.Text.Encoding as T
 import Data.Text.Strict.Lens (utf8)
@@ -126,50 +121,11 @@ mkTestJWTSignSettings =
         h = view thumbprint k :: Digest SHA256
         kid' = view (re (base64url . digest) . utf8) h
 
--- | The error type of `makeAccessToken`.
---
--- TODO: we're creating classy prisms for this in the spirit of what `jose` does with `Error`,
--- but this is a bit messy and doesn't scale.  Some ideas:
---
--- (1) use `sop-core`-style open sum types for errors, which would require a lot of
--- refactoring here, and ideally in jose.
---
--- (2) use the `MonadIO` constraint in `makeAccessToken` to run `signClaims` from the `jose`
--- library, extract the error as an `Either` using `runExceptT`, and put everything back
--- together in the abstract return monad.  Or introduce a `newtype` for the monad we want to
--- run this in, which instantiates all the constraints for `signClaims`.  But it seems if we
--- run `signClaims` in *any* concrete monad here, we lose the abstract m that is concretized
--- elsewhere, and that has been given a concrete `MonadRandom` instance by the library user
--- for security reasons.
---
--- So (2) seems a non-solution; (1) may be worth pursuing at some point in the future.  For
--- now, we'll stick with the classy prisms mess.
-data MakeAccessTokenError
-  = MakeAccessTokenNoAlg (ByteString, String)
-  | MakeAccessTokenEncNotSig (ByteString, String)
-  | MakeAccessTokenInconsistentAlgs (ByteString, String)
-  | MakeAccessTokenJoseError Error
-  deriving (Eq, Show)
-
-makeClassyPrisms ''MakeAccessTokenError
-
-instance AsError MakeAccessTokenError where
-  _Error :: Prism' MakeAccessTokenError Error
-  _Error = prism one two
-    where
-      one :: Error -> MakeAccessTokenError
-      one = MakeAccessTokenJoseError
-
-      two :: MakeAccessTokenError -> Either MakeAccessTokenError Error
-      two = \case
-        MakeAccessTokenJoseError err -> Right err
-        other -> Left other
-
 -- | Creates a JWT from User entity and a signing key valid for a given length of time.
 -- The JWK in the settings must be a valid signing key.
 makeAccessToken ::
   forall m e a.
-  (MonadIO m, MonadRandom m, MonadError e m, AsError e, AsMakeAccessTokenError e, ToJWT a) =>
+  (MonadIO m, MonadRandom m, MonadError e m, AsError e, ToJWT a) =>
   JWTSignSettings ->
   a ->
   m CompactJWT
@@ -183,29 +139,3 @@ makeAccessToken settings x = do
           & consClaims x
   tok <- signClaims (jwtSignKey settings) hdr cset
   return . CompactJWT . T.decodeUtf8 . BL.toStrict . encodeCompact $ tok
-
-headerFromJWK :: forall m e. (MonadError e m, AsMakeAccessTokenError e) => JWK -> m (JWSHeader ())
-headerFromJWK jwkey = do
-  let thrw :: AReview e (ByteString, String) -> m x
-      thrw cns = throwing cns (A.encode jwkey, show jwkey)
-  readJWSAlg <-
-    jwkey ^. jwkAlg & \case
-      Nothing -> pure Nothing
-      Just (JWSAlg kalg) -> pure $ Just kalg
-      Just (JWEAlg _) -> thrw _MakeAccessTokenEncNotSig
-  let readKeyMaterial = algFromKeyMaterial $ jwkey ^. jwkMaterial
-  kalg <- case (readJWSAlg, readKeyMaterial) of
-    (Just a, Just a') -> if a /= a' then thrw _MakeAccessTokenInconsistentAlgs else pure a
-    (Just a, Nothing) -> pure a
-    (Nothing, Just a) -> pure a
-    (Nothing, Nothing) -> thrw _MakeAccessTokenNoAlg
-
-  pure $ newJWSHeader ((), kalg) & kid .~ fmap (HeaderParam ()) (jwkey ^. jwkKid)
-
-algFromKeyMaterial :: KeyMaterial -> Maybe Alg
-algFromKeyMaterial _ =
-  -- 'but got:  AlgorithmMismatch "HS256 cannot be used with OKP key"'
-  -- maybe it's not an error to have no alg, and we can still construct a valid header from
-  -- that?  understand what header we want, and work the types back from there.
-  -- Just HS256
-  Nothing

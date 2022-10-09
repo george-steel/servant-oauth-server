@@ -68,22 +68,6 @@ instance AsError ServerError where
       two :: ServerError -> Either ServerError Error
       two = Left -- TODO: this could use some more love.
 
-instance AsMakeAccessTokenError ServerError where
-  _MakeAccessTokenError :: Prism' ServerError MakeAccessTokenError
-  _MakeAccessTokenError = prism one two
-    where
-      one :: MakeAccessTokenError -> ServerError
-      one err =
-        ServerError
-          { errHTTPCode = 400,
-            errReasonPhrase = "could-not-construct-oauth-token",
-            errBody = cs $ show err,
-            errHeaders = []
-          }
-
-      two :: ServerError -> Either ServerError MakeAccessTokenError
-      two = Left -- TODO: this could use some more love.
-
 -- | Token endpoint with refresh tokens.
 -- Takes signing settings, an action to create and store a refresh token, and an action to validate grants and return claims.
 -- The validation action must also return a Bool indicating whether a refresh token is to be created.
