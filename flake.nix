@@ -53,6 +53,7 @@
               pkgs.haskellPackages.implicit-hie
               pkgs.cabal2nix
               pkgs.ormolu
+              pkgs.hlint
 
               # For cabal
               pkgs.pkg-config
